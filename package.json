@@ -1,0 +1,22 @@
+{
+  "name": "dao-den-long",
+  "version": "1.0.0",
+  "description": "Day 12 AI SDLC Lab - Đảo Đèn Lồng 3D Game & Headless Simulation",
+  "type": "module",
+  "scripts": {
+    "start": "vite --port 5173",
+    "dev": "vite --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "headless": "node src/headless.js",
+    "test": "node --test tests/*.test.js",
+    "proof": "node scripts/generate-proof.js",
+    "verify": "node scripts/verify-hook.js"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

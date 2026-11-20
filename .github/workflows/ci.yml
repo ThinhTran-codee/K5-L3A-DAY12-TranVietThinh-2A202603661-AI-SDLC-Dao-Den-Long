@@ -1,0 +1,25 @@
+name: Verify Game Contract & Tests
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'phase-*', 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install
+      - name: Run unit, contract, and determinism tests
+        run: npm test
+      - name: Run verification hook
+        run: npm run verify
+      - name: Build production web bundle
+        run: npm run build
