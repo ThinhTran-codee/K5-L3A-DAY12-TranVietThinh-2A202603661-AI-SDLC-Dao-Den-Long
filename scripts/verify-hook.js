@@ -17,7 +17,13 @@ if (!fs.existsSync(contractPath)) {
 }
 
 const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
-if (!['1.0', '1.1', '1.2'].includes(contract.contract_version) || !contract.tuning || !contract.headless_cmd) {
+if (
+  !['1.0', '1.1', '1.2', '1.3'].includes(contract.contract_version) ||
+  !contract.tuning ||
+  !contract.headless_cmd ||
+  !contract.bench_cmd ||
+  !contract.soak_cmd
+) {
   console.error('[Harness Hook] FAIL: Invalid game.contract.json schema');
   process.exit(1);
 }

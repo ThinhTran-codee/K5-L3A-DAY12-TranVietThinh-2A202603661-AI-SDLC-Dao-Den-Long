@@ -7,9 +7,17 @@ import { spawnSync } from 'node:child_process';
 import { CONTRACT } from '../src/core/config.js';
 import { GameSimulation, round1, round3, distXZ } from '../src/core/simulation.js';
 import { runHeadless } from '../src/headless.js';
+import { runSoakTest } from '../src/soak.js';
+import { runBenchmark } from '../src/bench.js';
+import {
+  isValidPlayerName,
+  addLeaderboardEntry,
+  sortAndTrimLeaderboard
+} from '../src/core/leaderboard.js';
 
 const rootDir = process.cwd();
 const headlessScript = path.join(rootDir, 'src', 'headless.js');
+const runScript = path.join(rootDir, 'src', 'run.js');
 
 /**
  * ============================================================================
@@ -31,10 +39,12 @@ const headlessScript = path.join(rootDir, 'src', 'headless.js');
  * ============================================================================
  */
 
-test('AC-1.0 (Updated for v1.2): game.contract.json matches src/core/config.js and Test Contract v1.2 schema', () => {
+test('AC-1.0 (Updated for v1.3): game.contract.json matches src/core/config.js and Test Contract v1.3 schema', () => {
   const raw = fs.readFileSync(path.join(rootDir, 'game.contract.json'), 'utf8');
   const parsed = JSON.parse(raw);
-  assert.equal(parsed.contract_version, '1.2');
+  assert.equal(parsed.contract_version, '1.3');
+  assert.ok(parsed.bench_cmd);
+  assert.ok(parsed.soak_cmd);
   assert.deepEqual(parsed.tuning, CONTRACT.tuning);
 });
 
@@ -394,4 +404,68 @@ test('AC-2.1..AC-2.8 (Phase 2 Regressions): Dash, Jump Pads, Tiers, Drifters, Ch
   assert.ok(elapsed < 5000);
   const linesB = runHeadless({ seed: 99, night: 3, ticks: 18000, snapshotEvery: 600 });
   assert.deepEqual(linesA, linesB);
+});
+
+test('AC-4.1: Phase 4 Benchmark (200 Shades wander, 100 Motes, L1-L3 lit, 15s CCW camera orbit) meets >=60 FPS & >=30 p1_low_fps', async () => {
+  const rep = await runBenchmark({ seed: 42, duration: 1.0, warmupS: 0.25 });
+  assert.equal(rep.contract_version, '1.3');
+  assert.ok(rep.avg_fps >= 60, `Expected avg_fps >= 60, got ${rep.avg_fps}`);
+  assert.ok(rep.p1_low_fps >= 30, `Expected p1_low_fps >= 30, got ${rep.p1_low_fps}`);
+  assert.ok(rep.load_ms <= 10000, `Expected load_ms <= 10000, got ${rep.load_ms}`);
+  assert.equal(rep.vsync_off, true);
+});
+
+test('AC-4.2: Phase 4 Soak Test (10 consecutive Nights in single process) has crashes=0 and mem_end_mb <= 1.2 * mem_start_mb', () => {
+  const soak = runSoakTest({ seed: 7, nights: 10 });
+  assert.equal(soak.nights, 10);
+  assert.equal(soak.crashes, 0);
+  assert.equal(soak.results.length, 10);
+  assert.ok(
+    soak.mem_end_mb <= 1.2 * soak.mem_start_mb,
+    `Memory grew too much: ${soak.mem_start_mb}MB -> ${soak.mem_end_mb}MB`
+  );
+});
+
+test('AC-4.3: Phase 4 Local Leaderboard validation, Top-10 tie-break sorting, and --export-leaderboard CLI', () => {
+  assert.equal(isValidPlayerName('May_Pro123'), true);
+  assert.equal(isValidPlayerName('Mây_ĐảoBến'), true); // Vietnamese accented letters bonus
+  assert.equal(isValidPlayerName('ab'), false); // < 3 chars
+  assert.equal(isValidPlayerName('NameWithSpace!'), false);
+
+  let list = [];
+  list = addLeaderboardEntry(list, {
+    name: 'Player_B',
+    score: 800,
+    nights_won: 2,
+    achieved_at: '2026-11-20T16:10:00+07:00',
+    seed: 2
+  });
+  list = addLeaderboardEntry(list, {
+    name: 'Player_A',
+    score: 800,
+    nights_won: 2,
+    achieved_at: '2026-11-20T16:00:00+07:00',
+    seed: 1
+  });
+  list = addLeaderboardEntry(list, {
+    name: 'Player_Top',
+    score: 1500,
+    nights_won: 3,
+    achieved_at: '2026-11-20T16:20:00+07:00',
+    seed: 3
+  });
+
+  // Top score first; equal score tie-broken by earlier achieved_at (Player_A before Player_B)
+  assert.equal(list[0].name, 'Player_Top');
+  assert.equal(list[1].name, 'Player_A');
+  assert.equal(list[2].name, 'Player_B');
+
+  // Test <run_cmd> --export-leaderboard out.json
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dao-den-long-lb-'));
+  const lbOut = path.join(tmpDir, 'exported_lb.json');
+  const res = spawnSync('node', [runScript, '--export-leaderboard', lbOut], { encoding: 'utf8' });
+  assert.equal(res.status, 0);
+  const exported = JSON.parse(fs.readFileSync(lbOut, 'utf8'));
+  assert.ok(Array.isArray(exported.entries));
+  assert.ok(exported.entries.length >= 1 && exported.entries.length <= 10);
 });

@@ -3,11 +3,13 @@
  * Verified against game.contract.json by automated tests.
  */
 export const CONTRACT = {
-  contract_version: '1.2',
+  contract_version: '1.3',
   team: '2A202603661-TranVietThinh',
-  build_cmd: 'npm install',
-  run_cmd: 'npm start',
+  build_cmd: 'npm install && npm run build',
+  run_cmd: 'node src/run.js',
   headless_cmd: 'node src/headless.js',
+  bench_cmd: 'node src/bench.js',
+  soak_cmd: 'node src/soak.js',
   tuning: {
     player_speed: 6,
     dash_speed: 14,

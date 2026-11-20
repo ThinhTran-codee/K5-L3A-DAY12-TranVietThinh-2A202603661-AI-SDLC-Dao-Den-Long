@@ -548,36 +548,46 @@ export class GameSimulation {
 
   /**
    * Select nearest weak lit lantern (lit && fuel < 30), tie-break by smaller numeric ID.
+   * Zero-allocation loop for soak test memory stability.
    */
   findNearestWeakLantern(pos) {
-    const weak = [];
-    for (const l of this.lanterns) {
-      if (l.lit && l.fuelUnits < this.lowFuelThresholdUnits) {
-        weak.push({ lantern: l, d: distXZ(pos, l.pos) });
+    let best = null;
+    let bestD = Infinity;
+    let bestIdNum = Infinity;
+    for (let i = 0; i < this.lanterns.length; i++) {
+      const l = this.lanterns[i];
+      if (!l.lit || l.fuelUnits >= this.lowFuelThresholdUnits) continue;
+      const d = distXZ(pos, l.pos);
+      const idNum = parseNumericId(l.id);
+      if (d < bestD - 1e-6 || (Math.abs(d - bestD) <= 1e-6 && idNum < bestIdNum)) {
+        best = l;
+        bestD = d;
+        bestIdNum = idNum;
       }
     }
-    weak.sort((a, b) => {
-      if (Math.abs(a.d - b.d) > 1e-6) return a.d - b.d;
-      return parseNumericId(a.lantern.id) - parseNumericId(b.lantern.id);
-    });
-    return weak.length > 0 ? weak[0].lantern : null;
+    return best;
   }
 
   /**
    * Select nearest unlit lantern, tie-break by smaller numeric ID.
+   * Zero-allocation loop for soak test memory stability.
    */
   findNearestUnlitLantern(pos) {
-    const unlit = [];
-    for (const l of this.lanterns) {
-      if (!l.lit) {
-        unlit.push({ lantern: l, d: distXZ(pos, l.pos) });
+    let best = null;
+    let bestD = Infinity;
+    let bestIdNum = Infinity;
+    for (let i = 0; i < this.lanterns.length; i++) {
+      const l = this.lanterns[i];
+      if (l.lit) continue;
+      const d = distXZ(pos, l.pos);
+      const idNum = parseNumericId(l.id);
+      if (d < bestD - 1e-6 || (Math.abs(d - bestD) <= 1e-6 && idNum < bestIdNum)) {
+        best = l;
+        bestD = d;
+        bestIdNum = idNum;
       }
     }
-    unlit.sort((a, b) => {
-      if (Math.abs(a.d - b.d) > 1e-6) return a.d - b.d;
-      return parseNumericId(a.lantern.id) - parseNumericId(b.lantern.id);
-    });
-    return unlit.length > 0 ? unlit[0].lantern : null;
+    return best;
   }
 
   applyInputFrame(framePatch) {
@@ -683,11 +693,9 @@ export class GameSimulation {
     }
 
     // 2b. Shade fuel drain (5.0 fuel/s = 5 fuelUnits/tick per draining shade; emit fuel_drain every 60 ticks)
-    const drainingShades = this.shades
-      .filter((s) => s.bornTick < this.sim_tick && s.state === 'drain')
-      .sort((a, b) => parseNumericId(a.id) - parseNumericId(b.id));
-
-    for (const shade of drainingShades) {
+    for (let i = 0; i < this.shades.length; i++) {
+      const shade = this.shades[i];
+      if (shade.bornTick >= this.sim_tick || shade.state !== 'drain') continue;
       let targetL = shade.targetLanternId
         ? this.lanterns.find((l) => l.id === shade.targetLanternId)
         : null;
@@ -1473,10 +1481,11 @@ export class GameSimulation {
     // STEP 9: Collisions — Drifters steal first, then Shades hit (ascending ID)
     // =========================================================================
     if (canPlayerInteract) {
-      const sortedDrifters = [...this.drifters].sort(
-        (a, b) => parseNumericId(a.id) - parseNumericId(b.id)
-      );
-      for (const drifter of sortedDrifters) {
+      if (this.drifters.length > 1) {
+        this.drifters.sort((a, b) => parseNumericId(a.id) - parseNumericId(b.id));
+      }
+      for (let i = 0; i < this.drifters.length; i++) {
+        const drifter = this.drifters[i];
         if (drifter.bornTick >= this.sim_tick) continue;
         if (drifter.state !== 'chase' || drifter.hasStolenOnce) continue;
         if (distXZ(this.player.pos, drifter.pos) <= 1.2 + EPS) {
@@ -1495,10 +1504,11 @@ export class GameSimulation {
       }
 
       const playerSafe = this.isPlayerInLitSafeZone();
-      const sortedShades = [...this.shades].sort(
-        (a, b) => parseNumericId(a.id) - parseNumericId(b.id)
-      );
-      for (const shade of sortedShades) {
+      if (this.shades.length > 1) {
+        this.shades.sort((a, b) => parseNumericId(a.id) - parseNumericId(b.id));
+      }
+      for (let i = 0; i < this.shades.length; i++) {
+        const shade = this.shades[i];
         if (shade.bornTick >= this.sim_tick) continue;
         if (
           shade.state === 'stunned' ||
