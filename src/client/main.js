@@ -792,6 +792,19 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 
+  if (code === 'Digit1') {
+    startNightGameplay(1, 2027);
+    return;
+  }
+  if (code === 'Digit2') {
+    startNightGameplay(2, 2028);
+    return;
+  }
+  if (code === 'Digit3') {
+    startNightGameplay(3, 2029);
+    return;
+  }
+
   if (!sim || sim.state !== 'playing') return;
 
   if (code === kb.interact) queuedInteract = true;
@@ -975,6 +988,14 @@ document.querySelectorAll('[data-select-night]').forEach((btn) => {
     totalCampaignScore = 0;
     nightsWonCount = n - 1;
     showNightIntro(n);
+  });
+});
+
+document.querySelectorAll('[data-quick-night]').forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const n = Number(btn.getAttribute('data-quick-night'));
+    startNightGameplay(n, 2026 + n);
   });
 });
 

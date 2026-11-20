@@ -1,6 +1,6 @@
 # 🏮 Đảo Đèn Lồng v1.0.0 — Day 12 AI SDLC Lab
 
-> 🎬 **Video Demo (`.mp4` < 5 phút):** [Xem Video Demo trên GitHub Release `v1.0.0`](https://github.com/ThinhTran-codee/K5-L3-LAB-Day12-AI-SDLC/releases/tag/v1.0.0) *(hoặc tại `docs/demo/demo.mp4`)*
+> 🎬 **Video Demo (`.mp4` < 5 phút):** [Xem & Tải Video Demo tại GitHub Release `v1.0.0`](https://github.com/ThinhTran-codee/K5-L3A-DAY12-TranVietThinh-2A202603661-AI-SDLC-Dao-Den-Long/releases/tag/v1.0.0)
 > 📊 **Báo cáo Bằng chứng Kiểm chứng (Phase 1 → 4):**
 > - **Phase 4 (`v1.3` — Benchmark, Soak Test, Leaderboard, Accessibility):** [docs/proof/phase-4/VERIFICATION_REPORT.md](docs/proof/phase-4/VERIFICATION_REPORT.md) · [bench.json](bench.json) · [soak.json](soak.json)
 > - **Phase 3 (`v1.2` — Change Request "Đèn cạn dầu"):** [docs/proof/phase-3/VERIFICATION_REPORT.md](docs/proof/phase-3/VERIFICATION_REPORT.md) · [ADR-001](docs/notes/ADR-001-phase3-fuel-and-dawn-survival.md)
