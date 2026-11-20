@@ -137,49 +137,132 @@ function buildIslandEnvironment() {
 
 const { turtleRune } = buildIslandEnvironment();
 
-// Build Mây (Player Character: conical nón lá + hanging mini-lantern)
+// Build Mây (Player Character: adventurous crimson vest, indigo shorts, straw-golden nón lá with crimson ribbon + hanging mini-lantern)
 function createMayCharacter() {
   const group = new THREE.Group();
 
-  // Cloak / Tunic
-  const bodyGeo = new THREE.ConeGeometry(0.55, 1.25, 16);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.7 });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.position.y = 0.65;
-  body.castShadow = true;
-  group.add(body);
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.6 });
+  const vestMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.65 });
+  const shortsMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.75 });
+  const sashMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 });
+  const hairMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.8 });
 
-  // Head
-  const headGeo = new THREE.SphereGeometry(0.3, 16, 16);
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.6 });
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.position.y = 1.42;
+  // Articulated Legs
+  const leftLeg = new THREE.Group();
+  leftLeg.position.set(-0.2, 0.55, 0);
+  const lShort = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.13, 0.32, 12), shortsMat);
+  lShort.position.y = -0.12;
+  const lCuff = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.15, 0.15, 0.07, 12),
+    new THREE.MeshStandardMaterial({ color: 0xf8fafc })
+  );
+  lCuff.position.y = -0.27;
+  const lCalf = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.09, 0.26, 12), skinMat);
+  lCalf.position.y = -0.4;
+  const lSandal = new THREE.Mesh(
+    new THREE.BoxGeometry(0.22, 0.07, 0.32),
+    new THREE.MeshStandardMaterial({ color: 0x78350f })
+  );
+  lSandal.position.set(0, -0.52, 0.04);
+  leftLeg.add(lShort, lCuff, lCalf, lSandal);
+  group.add(leftLeg);
+
+  const rightLeg = leftLeg.clone();
+  rightLeg.position.set(0.2, 0.55, 0);
+  group.add(rightLeg);
+
+  // Torso (Crimson Explorer Vest + Yellow Waist Sash)
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 0.68, 16), vestMat);
+  torso.position.y = 0.88;
+  torso.castShadow = true;
+  group.add(torso);
+
+  const sash = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.37, 0.13, 16), sashMat);
+  sash.position.y = 0.58;
+  group.add(sash);
+
+  // Gold buttons on vest front
+  const btnMat = new THREE.MeshBasicMaterial({ color: 0xfde047 });
+  for (const by of [0.78, 0.96]) {
+    const btn = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), btnMat);
+    btn.position.set(0.06, by, 0.33);
+    group.add(btn);
+  }
+
+  // Articulated Arms
+  const leftArm = new THREE.Group();
+  leftArm.position.set(-0.42, 1.12, 0);
+  const lShoulder = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.11, 0.2, 10), vestMat);
+  lShoulder.position.y = -0.06;
+  const lForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.34, 10), skinMat);
+  lForearm.position.y = -0.26;
+  const lFist = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 10), skinMat);
+  lFist.position.y = -0.45;
+  leftArm.add(lShoulder, lForearm, lFist);
+  group.add(leftArm);
+
+  const rightArm = leftArm.clone();
+  rightArm.position.set(0.42, 1.12, 0);
+  group.add(rightArm);
+
+  // Head & Expressive Face
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.31, 16, 16), skinMat);
+  head.position.y = 1.46;
+  head.castShadow = true;
   group.add(head);
 
-  // Nón lá (Conical Hat)
-  const hatGeo = new THREE.ConeGeometry(0.78, 0.42, 24);
-  const hatMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.65 });
-  const hat = new THREE.Mesh(hatGeo, hatMat);
-  hat.position.y = 1.72;
-  hat.rotation.x = -0.08;
-  group.add(hat);
+  // Dark unruly hair rim under the nón lá
+  const hairCrown = new THREE.Mesh(new THREE.SphereGeometry(0.325, 14, 12), hairMat);
+  hairCrown.position.set(0, 1.5, -0.04);
+  group.add(hairCrown);
+
+  // Eyes
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0x09090b });
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 8), eyeMat);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.042, 8, 8), eyeMat);
+  eyeL.position.set(-0.1, 1.48, 0.28);
+  eyeR.position.set(0.1, 1.48, 0.28);
+  group.add(eyeL, eyeR);
+
+  // Straw-golden Nón Lá (Conical Hat) with Crimson Ribbon Band
+  const hatGroup = new THREE.Group();
+  hatGroup.position.y = 1.76;
+  hatGroup.rotation.x = -0.06;
+
+  const hatCone = new THREE.Mesh(
+    new THREE.ConeGeometry(0.82, 0.44, 28),
+    new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 })
+  );
+  hatGroup.add(hatCone);
+
+  // Crimson Ribbon around the Nón Lá crown
+  const ribbon = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.42, 0.56, 0.09, 24, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0xdc2626, side: THREE.DoubleSide, roughness: 0.5 })
+  );
+  ribbon.position.y = -0.06;
+  hatGroup.add(ribbon);
+
+  group.add(hatGroup);
 
   // Mini Lantern hanging from the front brim of Mây's Nón lá
-  const cordGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.25, 6);
-  const cordMat = new THREE.MeshBasicMaterial({ color: 0x78350f });
-  const cord = new THREE.Mesh(cordGeo, cordMat);
-  cord.position.set(0, 1.42, 0.68);
+  const cord = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.016, 0.016, 0.26, 6),
+    new THREE.MeshBasicMaterial({ color: 0x78350f })
+  );
+  cord.position.set(0, 1.45, 0.72);
   group.add(cord);
 
-  const miniLanternGeo = new THREE.SphereGeometry(0.13, 12, 12);
-  const miniLanternMat = new THREE.MeshBasicMaterial({ color: 0xffedd5 });
-  const miniLantern = new THREE.Mesh(miniLanternGeo, miniLanternMat);
-  miniLantern.position.set(0, 1.28, 0.68);
+  const miniLantern = new THREE.Mesh(
+    new THREE.SphereGeometry(0.13, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffedd5 })
+  );
+  miniLantern.position.set(0, 1.3, 0.72);
   group.add(miniLantern);
 
   // Warm Personal PointLight attached to Mây's mini-lantern
-  const playerLight = new THREE.PointLight(0xffaa33, 2.4, 16, 1.6);
-  playerLight.position.set(0, 1.4, 0.68);
+  const playerLight = new THREE.PointLight(0xffaa33, 2.5, 16, 1.6);
+  playerLight.position.set(0, 1.4, 0.72);
   playerLight.castShadow = true;
   group.add(playerLight);
 
@@ -188,7 +271,7 @@ function createMayCharacter() {
   orbitGroup.position.y = 1.1;
   group.add(orbitGroup);
 
-  return { group, miniLantern, playerLight, orbitGroup };
+  return { group, miniLantern, playerLight, orbitGroup, leftArm, rightArm, leftLeg, rightLeg };
 }
 
 const mayMesh = createMayCharacter();
@@ -446,9 +529,30 @@ function buildInputFrame() {
 function syncVisuals(timeSec) {
   if (!sim) return;
 
-  // 1. Update Mây position & animation
+  // 1. Update Mây position & running/jumping limb animation
   mayMesh.group.position.set(sim.player.pos[0], sim.player.pos[1], sim.player.pos[2]);
   mayMesh.group.rotation.y = sim.player.facingYaw;
+
+  const isMoving = Math.hypot(sim.currInput.move[0], sim.currInput.move[1]) > 0.05;
+  const isAirborne = sim.player.pos[1] > 0.05;
+  if (isAirborne) {
+    mayMesh.leftArm.rotation.x = -0.9;
+    mayMesh.rightArm.rotation.x = -0.9;
+    mayMesh.leftLeg.rotation.x = 0.45;
+    mayMesh.rightLeg.rotation.x = -0.35;
+  } else if (isMoving) {
+    const swing = Math.sin(timeSec * 14) * 0.65;
+    mayMesh.leftArm.rotation.x = swing;
+    mayMesh.rightArm.rotation.x = -swing;
+    mayMesh.leftLeg.rotation.x = -swing;
+    mayMesh.rightLeg.rotation.x = swing;
+  } else {
+    const idleSwing = Math.sin(timeSec * 2.5) * 0.06;
+    mayMesh.leftArm.rotation.x = idleSwing;
+    mayMesh.rightArm.rotation.x = -idleSwing;
+    mayMesh.leftLeg.rotation.x = 0;
+    mayMesh.rightLeg.rotation.x = 0;
+  }
 
   // Invulnerability blink
   if (sim.player.invulnTimer > 0) {
