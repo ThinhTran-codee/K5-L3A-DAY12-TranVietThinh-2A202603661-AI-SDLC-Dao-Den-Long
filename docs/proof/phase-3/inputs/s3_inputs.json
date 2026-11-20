@@ -1,0 +1,30 @@
+{
+  "frames": [
+    {
+      "tick": 0,
+      "move": [
+        0,
+        0
+      ]
+    },
+    {
+      "tick": 65,
+      "move": [
+        0,
+        -1
+      ]
+    },
+    {
+      "tick": 100,
+      "move": [
+        0,
+        0
+      ],
+      "pulse": true
+    },
+    {
+      "tick": 101,
+      "pulse": false
+    }
+  ]
+}
