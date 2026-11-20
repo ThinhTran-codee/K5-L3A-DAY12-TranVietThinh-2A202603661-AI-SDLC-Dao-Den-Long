@@ -1,9 +1,9 @@
-# AGENTS.md — Đảo Đèn Lồng (AI SDLC Harness — Phase 2 / Contract v1.1)
+# AGENTS.md — Đảo Đèn Lồng (AI SDLC Harness — Phase 3 / Contract v1.2)
 
 ## 1. Project Overview
 - **Game:** Đảo Đèn Lồng (3D Third-Person Game across 3 Nights + Deterministic 60Hz Headless Simulation)
 - **Stack:** Node.js (ESM) + Three.js (Vite)
-- **Core Rule:** Strict separation between `src/core/` (pure deterministic 60Hz game simulation, zero DOM/WebGL imports) and `src/client/` (Three.js 3D renderer, Web Audio, HUD, Menus).
+- **Core Rule:** Strict separation between `src/core/` (pure deterministic 60Hz game simulation, zero DOM/WebGL imports) and `src/client/` (Three.js 3D renderer, Web Audio, HUD, Menus, Colorblind Mode).
 
 ## 2. Standard Commands
 - **Install / Build:** `npm install && npm run build`
@@ -12,21 +12,19 @@
 - **Run All Tests & Verification:** `npm test`
 - **Generate Phase Proof:** `npm run proof`
 
-## 3. Non-Negotiable Rules (Guardrails — Updated for Phase 2 / Contract v1.1)
-1. **Test Contract v1.1 First:** `game.contract.json` (`contract_version: "1.1"`) is the single source of truth for all standardized `tuning` numbers.
-2. **Mandatory 12-Step Tick Order:**
-   1) Read input (process `pause` first; if just paused, stop step here).
-   2) Decrement timers (time, cooldowns, invuln, stun/recoil, charm, dropped mote TTL, charm respawn).
+## 3. Non-Negotiable Rules (Guardrails — Updated for Phase 3 / Contract v1.2)
+1. **Test Contract v1.2 First:** `game.contract.json` (`contract_version: "1.2"`) is the single source of truth for all `tuning` numbers.
+2. **Integer Fuel Precision (`1/60` units):** Always store and update lantern fuel in integer `fuelUnits` (`1 fuel = 60 fuelUnits`, max `6000`, threshold `1800`). Natural decay is `-1 unit/tick`; each draining shade subtracts `-5 units/tick`; each refuel mote adds `+600 units`. Round to 1 decimal place (`round1`) only when serializing snapshots/events.
+3. **Updated 12-Step Tick Order (Contract v1.2):**
+   1) Read input (`pause` first; if just paused, stop step here).
+   2) Decrement timers AND subtract lantern fuel (decay `1/s` + shade drain `5/s`, emitting `fuel_drain` every 60 ticks of draining). Immediately after Step 2, any lit lantern with `fuel <= 0` turns off (`lit = false`, `deposited = 0`, `ever_lit = true`, emitting `lantern_out`).
    3) Move Mây (jump, dash, jump pads, wind) then check island fall (`Y < -10`).
-   4) Pickup motes & charms (`XZ <= 1.0m`, `|dY| <= 1.5m`, entities born this tick cannot be picked up until next tick).
-   5) Interact with lanterns (`XZ <= 2.0m`, nearest unlit, tie-break by smaller `id`; `+10` score per deposited mote).
-   6) Update safe zones (`6.0m` around lit lanterns; shades inside when newly lit are pushed out over max 30 ticks without dealing damage).
-   7) Pulse (`cost: 3`, 3D dist from `player.pos + [0,0.8,0]` `<= 5.0m`, stun 120 ticks, push 4m over 15 ticks; affects chasing/fleeing Drifters).
-   8) Move Shades (`spawning`, `wander`, `chase`, `recoil`, `stunned`) and Drifters (`idle`, `chase`, `flee`, `removed`).
-   9) Collisions: Drifters steal first (`XZ <= 1.2m`), then Shades hit in ascending `id` order (`XZ <= 1.0m`, `|dY| <= 1.5m`, max 1 flame lost per tick).
-   10) Scheduled spawns (motes, shades, drifters; newly spawned entities only interact from next tick).
-   11) Win/Lose check (`flames <= 0` -> `lost/no_flames`; else all lanterns lit -> `won/all_lit`; else `time_left_s <= 0` -> `lost/dawn`).
+   4) Pickup motes (up to dynamic `player.capacity = min(20, 10 + 2 * successful_lights)`) & charms.
+   5) Interact with lanterns (`XZ <= 2.0m`, nearest eligible unlit or non-full lit lantern; relight cost is `5` if `ever_lit`, else `10`; refuel emits `refuel`; `+5` score per mote).
+   6) Update safe zones (`6.0m` ONLY around lit lanterns with `fuel >= 30`; refuel to `>= 30` expels shades inside `6.0m` over max 30 ticks).
+   7) Pulse (`cost: 3`, 3D dist `<= 5.0m`, `+15` score if shade was in `drain` else `+5`, stun 120 ticks -> returns to `wander` afterwards).
+   8) Move Shades (`spawning`, `wander`, `chase`, `drain`, `recoil`, `stunned`) and Drifters. `wander` shades target nearest lit lantern with `fuel < 30` (`<= 2m` enters `drain`).
+   9) Collisions: Drifters steal first, then Shades hit in ascending `id` order.
+   10) Scheduled spawns (motes, shades, drifters).
+   11) Win/Lose check (NO early win on all lanterns lit! `flames <= 0` -> `lost/no_flames`; at `time_left_s <= 0`: `lit_count >= ceil(0.6 * total)` -> `won/dawn_survived` else `lost/dawn`).
    12) Emit snapshot if `tick % snapshotEvery === 0`.
-3. **Performance Gate:** Running a full Night (`21,600` ticks) in headless mode MUST complete in `<= 30 seconds` (target `< 1 second`).
-4. **Exit Codes:** `0` on completion/game_over, `2` on invalid `--scenario` or `--inputs`, `1` on other CLI errors.
-5. **Creative Features Isolation:** Creative extensions must never alter headless output.
