@@ -1,6 +1,6 @@
 {
   "contract_version": "1.0",
-  "team": "K5-L3-Dao-Den-Long",
+  "team": "2A202603661-TranVietThinh",
   "build_cmd": "npm install",
   "run_cmd": "npm start",
   "headless_cmd": "node src/headless.js",
