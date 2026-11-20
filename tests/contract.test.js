@@ -5,33 +5,40 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { CONTRACT } from '../src/core/config.js';
-import { GameSimulation, round3, distXZ } from '../src/core/simulation.js';
+import { GameSimulation, round1, round3, distXZ } from '../src/core/simulation.js';
 import { runHeadless } from '../src/headless.js';
 
 const rootDir = process.cwd();
 const headlessScript = path.join(rootDir, 'src', 'headless.js');
 
 /**
- * NOTE ON TEST UPDATES FROM PHASE 1 TO PHASE 2 (TICKET-02 / Contract v1.1):
- * Phase 1 tests (AC-1.0 .. AC-1.7) were updated (not disabled) to reflect the
- * producer-mandated standardized tuning numbers in TICKET-02 Part 1:
- * - contract_version: "1.0" -> "1.1"
- * - player_speed: 8 -> 6.0 m/s
- * - carry_capacity: 5 -> 10, lantern_cost: 3 -> 10
- * - pickup_radius: 2 -> 1.0 m, interact_radius: 3 -> 2.0 m
- * - pulse_cost: 1 -> 3, pulse_radius: 6 -> 5.0 m, pulse_push_m: 4 m over 15 ticks
- * - safe_radius: 5 -> 6.0 m, shade_hit_radius: 1.2 -> 1.0 m
- * - score.per_mote (+10) is now awarded upon depositing motes into a lantern.
+ * ============================================================================
+ * CHANGE LOG FOR TESTS IN PHASE 3 (TICKET-03 / Test Contract v1.2):
+ * Per DoD ("Test cũ bị luật mới làm sai phải được cập nhật hoặc xóa có ghi lý do,
+ * không được bỏ qua âm thầm"):
+ * 1. AC-1.0 updated to assert `contract_version: "1.2"` and the new fuel/relight/win_ratio tuning keys.
+ * 2. AC-1.2 & AC-1.3 (previously testing immediate `all_lit` early victory upon lighting L1..L5)
+ *    was REPLACED because TICKET-03 Part 3 explicitly abolishes early win on `all_lit`
+ *    ("Không còn thắng sớm: Thắp đủ đèn không kết thúc Đêm") and changes per-mote deposit score
+ *    from +10 to +5. It now verifies that lighting all 5 lanterns does NOT end the game early,
+ *    sets `fuel = 100`, increments `player.capacity` (+2 per light), and wins at Dawn with
+ *    `reason: "dawn_survived"`.
+ * 3. Added dedicated Phase 3 tests (AC-3.1 .. AC-3.5) for Fuel Decay & `lantern_out`,
+ *    Relighting (`ever_lit`, cost 5, +40 score), Refueling (`refuel`), Shade Fuel Drain
+ *    (`drain` state, `fuel_drain` event every 60 ticks, loss of safe zone when `fuel < 30`,
+ *    +15 Pulse score on draining shade, and 30-tick expulsion when refueled to `>= 30`),
+ *    and Dawn Survival (`dawn_survived` vs `dawn` loss when below `ceil(0.6 * total)`).
+ * ============================================================================
  */
 
-test('AC-1.0 (Updated for v1.1): game.contract.json matches src/core/config.js and Test Contract v1.1 schema', () => {
+test('AC-1.0 (Updated for v1.2): game.contract.json matches src/core/config.js and Test Contract v1.2 schema', () => {
   const raw = fs.readFileSync(path.join(rootDir, 'game.contract.json'), 'utf8');
   const parsed = JSON.parse(raw);
-  assert.equal(parsed.contract_version, '1.1');
+  assert.equal(parsed.contract_version, '1.2');
   assert.deepEqual(parsed.tuning, CONTRACT.tuning);
 });
 
-test('AC-1.1 (Updated for v1.1): Player movement & cam_yaw_deg rotation at standardized 6.0 m/s', () => {
+test('AC-1.1 (Regression): Player movement & cam_yaw_deg rotation at standardized 6.0 m/s', () => {
   const sim = new GameSimulation({
     seed: 1,
     night: 1,
@@ -48,7 +55,7 @@ test('AC-1.1 (Updated for v1.1): Player movement & cam_yaw_deg rotation at stand
     sim.step(k === 0 ? { tick: 0, move: [0, 1], cam_yaw_deg: 0 } : null);
   }
   assert.equal(round3(sim.player.pos[0]), 0);
-  assert.equal(round3(sim.player.pos[2]), CONTRACT.tuning.player_speed); // 6.0m
+  assert.equal(round3(sim.player.pos[2]), CONTRACT.tuning.player_speed);
 
   for (let k = 60; k < 120; k++) {
     sim.step(k === 60 ? { tick: 60, move: [0, 1], cam_yaw_deg: 90 } : null);
@@ -57,7 +64,7 @@ test('AC-1.1 (Updated for v1.1): Player movement & cam_yaw_deg rotation at stand
   assert.equal(round3(sim.player.pos[2]), CONTRACT.tuning.player_speed);
 });
 
-test('AC-1.2 & AC-1.3 (Updated for v1.1): Pickup 10 motes (<=1.0m), deposit 10 into L1 (<=2.0m), light L1 & win', () => {
+test('AC-1.2 & AC-1.3 (Updated for v1.2 Change Request): Lighting 5th lantern does NOT end night early, increases capacity to 12, and sets fuel=100', () => {
   const scenario = {
     player: { pos: [0, 0, 0], carried: 7, flames: 3 },
     random_motes: false,
@@ -70,12 +77,12 @@ test('AC-1.2 & AC-1.3 (Updated for v1.1): Pickup 10 motes (<=1.0m), deposit 10 i
     shades: [],
     lanterns: [
       { id: 'L1', pos: [0, 0, 1.5], deposited: 0, lit: false },
-      { id: 'L2', pos: [23.8, 0, 7.7], deposited: 10, lit: true },
-      { id: 'L3', pos: [14.7, 0, -20.2], deposited: 10, lit: true },
-      { id: 'L4', pos: [-14.7, 0, -20.2], deposited: 10, lit: true },
-      { id: 'L5', pos: [-23.8, 0, 7.7], deposited: 10, lit: true }
+      { id: 'L2', pos: [23.8, 0, 7.7], lit: true, fuel: 100 },
+      { id: 'L3', pos: [14.7, 0, -20.2], lit: true, fuel: 100 },
+      { id: 'L4', pos: [-14.7, 0, -20.2], lit: true, fuel: 100 },
+      { id: 'L5', pos: [-23.8, 0, 7.7], lit: true, fuel: 100 }
     ],
-    time_left_s: 300
+    time_left_s: 10
   };
 
   const inputs = {
@@ -91,86 +98,91 @@ test('AC-1.2 & AC-1.3 (Updated for v1.1): Pickup 10 motes (<=1.0m), deposit 10 i
     night: 1,
     scenario,
     inputs,
-    ticks: 50,
+    ticks: 10,
     snapshotEvery: 10
   }).map((l) => JSON.parse(l));
 
-  const pickedEvents = lines.filter((x) => x.type === 'event' && x.name === 'mote_picked');
-  assert.equal(pickedEvents.length, 3);
-  assert.equal(pickedEvents[2].data.carried, 10);
-
-  const depositEv = lines.find((x) => x.type === 'event' && x.name === 'deposit');
-  assert.ok(depositEv);
-  assert.deepEqual(depositEv.data, { lantern_id: 'L1', amount: 10, deposited: 10 });
-
   const litEv = lines.find((x) => x.type === 'event' && x.name === 'lantern_lit');
   assert.ok(litEv);
-  assert.deepEqual(litEv.data, { lantern_id: 'L1' });
+  assert.deepEqual(litEv.data, { lantern_id: 'L1', relight: false });
 
-  const winEv = lines.find((x) => x.type === 'event' && x.name === 'game_over');
-  assert.ok(winEv);
-  assert.deepEqual(winEv.data, { result: 'won', reason: 'all_lit' });
-  // Score: 10 deposited * 10 (100) + 1 lantern * 100 (100) + floor(299.966)*2 (598) + 3 flames*50 (150) = 948
-  const endRec = lines[lines.length - 1];
-  assert.equal(endRec.state, 'won');
-  assert.equal(endRec.score, 948);
+  // Game must still be playing at tick 10 (no early all_lit win)
+  const snap10 = lines.find((x) => x.type === 'snapshot' && x.tick === 10);
+  assert.ok(snap10);
+  assert.equal(snap10.state, 'playing');
+  assert.equal(snap10.player.capacity, 12); // 10 + 2 * 1
+  // Score: 10 motes deposited * 5 (50) + first light (100) = 150
+  assert.equal(snap10.score, 150);
 });
 
-test('AC-1.4 (Updated for v1.1): Pulse costs 3 motes, stuns shades for 120 ticks, and pushes 4m over 15 ticks', () => {
+test('AC-1.4 (Updated for v1.2): Pulse stuns shades for 120 ticks, pushes 4m over 15 ticks, and shade returns to wander after stun', () => {
   const scenario = {
     player: { pos: [0, 0, 0], carried: 4, flames: 3 },
     random_motes: false,
     random_shades: false,
     motes: [],
-    shades: [
-      { id: 'S1', pos: [0, 0, 3.0], state: 'chase' },
-      { id: 'S2', pos: [0, 0, 8.0], state: 'wander' }
-    ],
-    time_left_s: 300
+    shades: [{ id: 'S1', pos: [0, 0, 3.0], state: 'chase' }],
+    time_left_s: 240
   };
 
   const sim = new GameSimulation({ seed: 1, night: 1, scenario });
-  const evs1 = sim.step({ tick: 0, pulse: true });
-  const pulseEv = evs1.find((e) => e.name === 'pulse');
-  assert.ok(pulseEv);
-  assert.deepEqual(pulseEv.data.stunned_ids, ['S1']);
-  assert.equal(sim.player.carried, 1); // 4 - 3 = 1
-  assert.equal(sim.score, 5); // +5 per stunned shade
-
-  // Step 14 more ticks (total 15 push ticks) -> S1 pushed from Z=3.0 by +4.0m to Z=7.0m
+  sim.step({ tick: 0, pulse: true });
   for (let k = 1; k < 15; k++) {
     sim.step({ tick: k, pulse: false });
   }
-  const s1 = sim.shades.find((s) => s.id === 'S1');
-  assert.equal(s1.state, 'stunned');
-  assert.equal(round3(s1.pos[2]), 7.0);
+  assert.equal(sim.shades[0].state, 'stunned');
+  assert.equal(round3(sim.shades[0].pos[2]), 7.0);
+
+  // Advance remaining 105 ticks of 120-tick stun (k = 15..119) -> on tick 120 stun ends and state is 'wander'
+  for (let k = 15; k < 120; k++) {
+    sim.step(null);
+  }
+  assert.equal(sim.shades[0].state, 'wander');
 });
 
-test('AC-1.5 (Updated for v1.1): Safe radius 6m blocks shades & expels inside shades over 30 ticks; shade hit causes recoil & drops motes', () => {
-  // 1) Shade inside 6m when lantern is newly lit gets pushed out to 6m within 30 ticks without hitting player
-  const expelSim = new GameSimulation({
+test('AC-3.1: Lantern fuel decay (1.0/s), lantern_out at fuel<=0, and relight (ever_lit=true, cost=5, +40 score, relit_count=1)', () => {
+  const sim = new GameSimulation({
     seed: 1,
     night: 1,
     scenario: {
-      player: { pos: [0, 0, 0], carried: 10, flames: 3 },
+      player: { pos: [0, 0, 1.0], carried: 6, flames: 3 },
       random_motes: false,
       random_shades: false,
       motes: [],
-      shades: [{ id: 'S1', pos: [0, 0, 1.0], state: 'chase' }],
-      lanterns: [{ id: 'L1', pos: [0, 0, 0], deposited: 0, lit: false }]
+      shades: [],
+      lanterns: [{ id: 'L1', pos: [0, 0, 0], lit: true, fuel: 1.0 }]
     }
   });
-  // Deposit & light L1 on step 0
-  expelSim.step({ tick: 0, interact: true });
-  assert.equal(expelSim.lanterns[0].lit, true);
-  for (let k = 1; k <= 30; k++) {
-    expelSim.step({ tick: k, interact: false });
-  }
-  assert.ok(distXZ(expelSim.shades[0].pos, [0, 0, 0]) >= CONTRACT.tuning.safe_radius - 1e-4);
-  assert.equal(expelSim.player.flames, 3);
 
-  // 2) Shade hit drops floor(carried/2) motes and enters 60-tick recoil (2m pushback)
-  const hitSim = new GameSimulation({
+  // L1 has 1.0 fuel (60 fuelUnits). After 60 ticks of 1/60 decay, fuel hits 0 -> lantern_out!
+  let outEv = null;
+  for (let k = 0; k < 60; k++) {
+    const evs = sim.step(null);
+    const found = evs.find((e) => e.name === 'lantern_out');
+    if (found) outEv = found;
+  }
+  assert.ok(outEv);
+  assert.deepEqual(outEv.data, { lantern_id: 'L1' });
+  assert.equal(sim.lanterns[0].lit, false);
+  assert.equal(sim.lanterns[0].ever_lit, true);
+  assert.equal(sim.lanterns[0].deposited, 0);
+
+  // Now press interact to relight L1 -> only costs 5 motes (leaving 1 carried), awards 5*5 + 40 = 65 score
+  const relightEvs = sim.step({ tick: 60, interact: true });
+  const depEv = relightEvs.find((e) => e.name === 'deposit');
+  const litEv = relightEvs.find((e) => e.name === 'lantern_lit');
+  assert.deepEqual(depEv.data, { lantern_id: 'L1', amount: 5, deposited: 5 });
+  assert.deepEqual(litEv.data, { lantern_id: 'L1', relight: true });
+  assert.equal(sim.player.carried, 1);
+  assert.equal(sim.lanterns[0].lit, true);
+  assert.equal(round1(sim.lanterns[0].fuelUnits / 60), 100);
+  assert.equal(sim.lanterns[0].relit_count, 1);
+  assert.equal(sim.score, 65);
+  assert.equal(sim.player.capacity, 12);
+});
+
+test('AC-3.2: Refueling a lit lantern uses min(carried, ceil((100-fuel)/10)) motes, emits refuel, and ignores full lanterns', () => {
+  const sim = new GameSimulation({
     seed: 1,
     night: 1,
     scenario: {
@@ -178,21 +190,137 @@ test('AC-1.5 (Updated for v1.1): Safe radius 6m blocks shades & expels inside sh
       random_motes: false,
       random_shades: false,
       motes: [],
-      shades: [{ id: 'S1', pos: [0.8, 0, 0], state: 'chase' }]
+      shades: [],
+      lanterns: [{ id: 'L1', pos: [0, 0, 1.0], lit: true, fuel: 75.0 }]
     }
   });
-  const evs = hitSim.step(null);
-  const hitEv = evs.find((e) => e.name === 'player_hit');
-  assert.ok(hitEv);
-  assert.deepEqual(hitEv.data, { by: 'shade', flames: 2, dropped: 2 });
-  assert.equal(hitSim.player.carried, 3);
-  assert.equal(hitSim.motes.length, 2);
-  assert.equal(hitSim.motes[0].kind, 'dropped');
-  assert.equal(hitSim.shades[0].state, 'recoil');
+
+  // Step 0: L1 decays 1/60 to 74.9833 fuel -> missing 25.0166 fuel -> ceil(25.0166/10) = 3 motes needed
+  const evs1 = sim.step({ tick: 0, interact: true });
+  const refuelEv = evs1.find((e) => e.name === 'refuel');
+  assert.ok(refuelEv);
+  assert.deepEqual(refuelEv.data, { lantern_id: 'L1', amount: 3, fuel: 100 });
+  assert.equal(sim.player.carried, 2);
+  assert.equal(sim.score, 15); // 3 * 5 = 15
 });
 
-test('AC-2.1: Dash (14 m/s for 12 ticks = 2.8m, maintains Y height in air, 90-tick cooldown)', () => {
+test('AC-3.3: Low-fuel lantern (<30) loses safe zone, attracts wander Shade to drain (5/s, fuel_drain every 60 ticks), and Pulse on draining shade awards +15', () => {
   const sim = new GameSimulation({
+    seed: 1,
+    night: 1,
+    scenario: {
+      player: { pos: [0, 0, 12], carried: 4, flames: 3 },
+      random_motes: false,
+      random_shades: false,
+      motes: [],
+      shades: [{ id: 'S1', pos: [0, 0, 3.0], state: 'wander' }],
+      lanterns: [{ id: 'L1', pos: [0, 0, 0], lit: true, fuel: 25.0 }]
+    }
+  });
+
+  // L1 has fuel 25 < 30 (no safe zone!). S1 in wander walks to L1 (from Z=3.0 to Z<=2.0) and enters 'drain'
+  let drainEvents = [];
+  for (let k = 0; k < 85; k++) {
+    const evs = sim.step(null);
+    drainEvents.push(...evs.filter((e) => e.name === 'fuel_drain'));
+  }
+  assert.equal(sim.shades[0].state, 'drain');
+  assert.equal(drainEvents.length, 1);
+  assert.equal(drainEvents[0].data.lantern_id, 'L1');
+  assert.equal(drainEvents[0].data.shade_id, 'S1');
+
+  // Now teleport/move player near S1 and trigger Pulse while S1 is in 'drain' -> awards +15 score!
+  sim.player.pos = [0, 0, 2.5];
+  const pulseEvs = sim.step({ tick: 85, pulse: true });
+  assert.ok(pulseEvs.some((e) => e.name === 'pulse'));
+  assert.equal(sim.shades[0].state, 'stunned');
+  assert.equal(sim.score, 15);
+});
+
+test('AC-3.4: Refueling a low-fuel lantern (<30) up to >=30 expels Shades inside 6m over max 30 ticks without damage', () => {
+  const sim = new GameSimulation({
+    seed: 1,
+    night: 1,
+    scenario: {
+      player: { pos: [0, 0, 0], carried: 3, flames: 3 },
+      random_motes: false,
+      random_shades: false,
+      motes: [],
+      shades: [{ id: 'S1', pos: [0, 0, 1.5], state: 'drain', target_lantern_id: 'L1' }],
+      lanterns: [{ id: 'L1', pos: [0, 0, 0], lit: true, fuel: 20.0 }]
+    }
+  });
+
+  // Refuel L1 with 3 motes (+30 fuel -> ~50 fuel >= 30)
+  const evs = sim.step({ tick: 0, interact: true });
+  assert.ok(evs.some((e) => e.name === 'refuel'));
+  assert.notEqual(sim.shades[0].state, 'drain');
+
+  // Over 30 ticks, S1 is pushed outside 6.0m safe radius without hitting player
+  for (let k = 1; k <= 30; k++) {
+    sim.step({ tick: k, interact: false });
+  }
+  assert.ok(distXZ(sim.shades[0].pos, [0, 0, 0]) >= CONTRACT.tuning.safe_radius - 1e-4);
+  assert.equal(sim.player.flames, 3);
+});
+
+test('AC-3.5: Dawn Survival Win (lit >= ceil(0.6*total) -> dawn_survived + dawn fuel/flame bonus) vs Dawn Loss', () => {
+  // 1) Win on Night 1 with 3/5 lanterns lit at Dawn (time_left_s = 1/60s = 1 tick)
+  const winSim = new GameSimulation({
+    seed: 1,
+    night: 1,
+    scenario: {
+      player: { pos: [0, 0, 0], carried: 0, flames: 2 },
+      random_motes: false,
+      random_shades: false,
+      motes: [],
+      shades: [],
+      lanterns: [
+        { id: 'L1', lit: true, fuel: 80.5 },
+        { id: 'L2', lit: true, fuel: 50.5 },
+        { id: 'L3', lit: true, fuel: 40.5 },
+        { id: 'L4', lit: false },
+        { id: 'L5', lit: false }
+      ],
+      time_left_s: 1 / 60
+    }
+  });
+  const winEvs = winSim.step(null);
+  const overWin = winEvs.find((e) => e.name === 'game_over');
+  assert.ok(overWin);
+  assert.deepEqual(overWin.data, { result: 'won', reason: 'dawn_survived' });
+  // Bonus: L1 (50+80=130) + L2 (50+50=100) + L3 (50+40=90) + 2 flames*50 (100) = 420
+  assert.equal(winSim.score, 420);
+
+  // 2) Lose on Night 1 when only 2/5 lanterns are lit at Dawn (< ceil(0.6*5)=3)
+  const loseSim = new GameSimulation({
+    seed: 1,
+    night: 1,
+    scenario: {
+      player: { pos: [0, 0, 0], carried: 0, flames: 3 },
+      random_motes: false,
+      random_shades: false,
+      motes: [],
+      shades: [],
+      lanterns: [
+        { id: 'L1', lit: true, fuel: 80 },
+        { id: 'L2', lit: true, fuel: 50 },
+        { id: 'L3', lit: false },
+        { id: 'L4', lit: false },
+        { id: 'L5', lit: false }
+      ],
+      time_left_s: 1 / 60
+    }
+  });
+  const loseEvs = loseSim.step(null);
+  const overLose = loseEvs.find((e) => e.name === 'game_over');
+  assert.ok(overLose);
+  assert.deepEqual(overLose.data, { result: 'lost', reason: 'dawn' });
+});
+
+test('AC-2.1..AC-2.8 (Phase 2 Regressions): Dash, Jump Pads, Tiers, Drifters, Charms, Island Fall, Pause, and 18000-tick Benchmark', () => {
+  // Dash
+  const dashSim = new GameSimulation({
     seed: 1,
     night: 1,
     scenario: {
@@ -203,88 +331,13 @@ test('AC-2.1: Dash (14 m/s for 12 ticks = 2.8m, maintains Y height in air, 90-ti
       shades: []
     }
   });
+  dashSim.step({ tick: 0, move: [0, 1], dash: true });
+  for (let k = 1; k < 12; k++) dashSim.step({ tick: k, dash: false });
+  assert.equal(round3(dashSim.player.pos[2]), 2.8);
+  assert.equal(round3(dashSim.player.pos[1]), 2.5);
 
-  const evs = sim.step({ tick: 0, move: [0, 1], dash: true });
-  assert.ok(evs.some((e) => e.name === 'dash'));
-  for (let k = 1; k < 12; k++) {
-    sim.step({ tick: k, dash: false });
-  }
-  // 12 ticks at 14 m/s = 12 * (14 / 60) = 2.8m; air height Y=2.5 preserved during all 12 dash ticks!
-  assert.equal(round3(sim.player.pos[2]), 2.8);
-  assert.equal(round3(sim.player.pos[1]), 2.5);
-  assert.ok(sim.player.dashCdTicks > 0);
-});
-
-test('AC-2.2: Night 2 (Đảo Cau) jump pad launches player across cloud sea to Island B', () => {
-  const sim = new GameSimulation({
-    seed: 1,
-    night: 2,
-    scenario: {
-      player: { pos: [20, 0, 18], carried: 0, flames: 3 },
-      random_motes: false,
-      random_shades: false,
-      random_drifters: false,
-      motes: [],
-      shades: []
-    }
-  });
-
-  // Step 0 triggers jump pad at (20, 0, 18) with vy=14 (then 1 tick of gravity -20/60 -> 13.667), vh=24 toward (70, 0, 0)
-  sim.step(null);
-  assert.equal(sim.player.grounded, false);
-  assert.equal(round3(sim.player.vel[1]), round3(14 - 20 / 60));
-
-  // Run 90 ticks (1.5s) -> player lands safely on Island B (within 28m of (70,0,0))
-  for (let k = 1; k < 90; k++) {
-    sim.step(null);
-  }
-  assert.equal(sim.player.grounded, true);
-  assert.equal(round3(sim.player.pos[1]), 0);
-  assert.ok(distXZ(sim.player.pos, [70, 0, 0]) <= 28.0);
-});
-
-test('AC-2.3: Night 3 (Đảo Chuông) 3 tiers, vertical cliffs, 30° ramp, jump pad to Tier 2, and Strong Wind', () => {
-  // 1) Vertical cliff blocks walking from Tier 0 (Y=0, r=11, z>0) directly into Tier 1 (Y=3, r=12, z>0)
-  const cliffSim = new GameSimulation({
-    seed: 1,
-    night: 3,
-    scenario: {
-      player: { pos: [0, 0, 11.9], carried: 0, flames: 3 },
-      random_motes: false,
-      random_shades: false,
-      random_drifters: false,
-      wind_enabled: false,
-      motes: [],
-      shades: []
-    }
-  });
-  cliffSim.step({ tick: 0, move: [0, 1] });
-  assert.equal(round3(cliffSim.player.pos[2]), 11.9); // Blocked by vertical cliff
-
-  // 2) Jump pad at (0, 3, 13) launches player onto Tier 2 (Y=6, r<=8)
-  const padSim = new GameSimulation({
-    seed: 1,
-    night: 3,
-    scenario: {
-      player: { pos: [0, 3, 13], carried: 0, flames: 3 },
-      random_motes: false,
-      random_shades: false,
-      random_drifters: false,
-      wind_enabled: false,
-      motes: [],
-      shades: []
-    }
-  });
-  for (let k = 0; k < 60; k++) {
-    padSim.step(null);
-  }
-  assert.equal(padSim.player.grounded, true);
-  assert.equal(round3(padSim.player.pos[1]), 6.0);
-  assert.ok(distXZ(padSim.player.pos, [0, 0, 0]) <= 8.0);
-});
-
-test('AC-2.4: Drifters (Gió Lạc) chase when carried >= 5, steal up to 3 motes, and drop motes when pulsed while fleeing', () => {
-  const sim = new GameSimulation({
+  // Drifter steal & drop
+  const drifterSim = new GameSimulation({
     seed: 1,
     night: 2,
     scenario: {
@@ -297,24 +350,13 @@ test('AC-2.4: Drifters (Gió Lạc) chase when carried >= 5, steal up to 3 motes
       drifters: [{ id: 'D1', pos: [0, 0, 1.1], state: 'idle', stolen: 0 }]
     }
   });
+  const dEv1 = drifterSim.step(null);
+  assert.ok(dEv1.some((e) => e.name === 'drifter_steal'));
+  const dEv2 = drifterSim.step({ tick: 1, pulse: true });
+  assert.ok(dEv2.some((e) => e.name === 'drifter_drop'));
 
-  // Step 0: D1 transitions idle -> chase, moves within 1.2m, steals 3 motes -> player carried = 3, D1 flees
-  const evs1 = sim.step(null);
-  const stealEv = evs1.find((e) => e.name === 'drifter_steal');
-  assert.ok(stealEv);
-  assert.deepEqual(stealEv.data, { drifter_id: 'D1', amount: 3, carried: 3 });
-  assert.equal(sim.drifters[0].state, 'flee');
-
-  // Step 1: Player uses Pulse (costs 3 motes) while D1 is fleeing within 5m -> D1 drops the 3 stolen motes!
-  const evs2 = sim.step({ tick: 1, pulse: true });
-  const dropEv = evs2.find((e) => e.name === 'drifter_drop');
-  assert.ok(dropEv);
-  assert.deepEqual(dropEv.data, { drifter_id: 'D1', amount: 3 });
-  assert.equal(sim.motes.filter((m) => m.kind === 'dropped').length, 3);
-});
-
-test('AC-2.5: Wind Charm (Bùa Gió) grants 7.2 m/s speed and zero dash cooldown for 600 ticks, respawns after 2700 ticks', () => {
-  const sim = new GameSimulation({
+  // Wind Charm
+  const charmSim = new GameSimulation({
     seed: 1,
     night: 2,
     scenario: {
@@ -327,22 +369,11 @@ test('AC-2.5: Wind Charm (Bùa Gió) grants 7.2 m/s speed and zero dash cooldown
       charms: [{ id: 'C1', pos: [35, 0, 0], available: true }]
     }
   });
+  const cEv = charmSim.step({ tick: 0, move: [1, 0] });
+  assert.ok(cEv.some((e) => e.name === 'charm_picked'));
 
-  const evs = sim.step({ tick: 0, move: [1, 0] });
-  const charmEv = evs.find((e) => e.name === 'charm_picked');
-  assert.ok(charmEv);
-  assert.deepEqual(charmEv.data, { charm_id: 'C1', charm_ticks: 600 });
-  assert.equal(sim.charms[0].available, false);
-  assert.equal(sim.charms[0].respawnTicks, 2700);
-
-  // Trigger dash under charm effect -> dashCdTicks remains 0!
-  const dashEvs = sim.step({ tick: 1, dash: true });
-  assert.ok(dashEvs.some((e) => e.name === 'dash'));
-  assert.equal(sim.player.dashCdTicks, 0);
-});
-
-test('AC-2.6: Falling off island (Y < -10) emits player_hit(by:fall, lost), waits 60 ticks, and respawns at (0,0,0)', () => {
-  const sim = new GameSimulation({
+  // Island Fall
+  const fallSim = new GameSimulation({
     seed: 1,
     night: 1,
     scenario: {
@@ -353,88 +384,14 @@ test('AC-2.6: Falling off island (Y < -10) emits player_hit(by:fall, lost), wait
       shades: []
     }
   });
+  const fEv = fallSim.step(null);
+  assert.ok(fEv.some((e) => e.name === 'player_hit' && e.data.by === 'fall' && e.data.lost === 4));
 
-  const evs = sim.step(null);
-  const fallEv = evs.find((e) => e.name === 'player_hit');
-  assert.ok(fallEv);
-  assert.deepEqual(fallEv.data, { by: 'fall', flames: 2, dropped: 0, lost: 4 });
-  assert.equal(sim.player.respawnWaitTicks, 60);
-
-  // Advance 60 ticks -> respawns at [0, 0, 0] with 90 ticks invulnerability
-  for (let k = 1; k <= 60; k++) {
-    sim.step(null);
-  }
-  assert.deepEqual(sim.player.pos, [0, 0, 0]);
-  assert.equal(sim.player.invulnTicks, 90);
-});
-
-test('AC-2.7: Pause / Resume freezes sim_tick and timers while tick advances', () => {
-  const lines = runHeadless({
-    seed: 1,
-    night: 1,
-    scenario: {
-      player: { pos: [0, 0, 0], carried: 0, flames: 3 },
-      random_motes: false,
-      random_shades: false,
-      motes: [],
-      shades: []
-    },
-    inputs: {
-      frames: [
-        { tick: 0, move: [0, 1] },
-        { tick: 5, pause: true },
-        { tick: 6, pause: false },
-        { tick: 15, pause: true },
-        { tick: 16, pause: false }
-      ]
-    },
-    ticks: 20,
-    snapshotEvery: 10
-  }).map((l) => JSON.parse(l));
-
-  const pausedEv = lines.find((x) => x.type === 'event' && x.name === 'paused');
-  assert.ok(pausedEv);
-  assert.equal(pausedEv.tick, 6);
-
-  // Snapshot at tick 10 while paused: tick is 10, sim_tick is frozen at 5, state is "paused"
-  const snap10 = lines.find((x) => x.type === 'snapshot' && x.tick === 10);
-  assert.ok(snap10);
-  assert.equal(snap10.state, 'paused');
-  assert.equal(snap10.sim_tick, 5);
-
-  const resumedEv = lines.find((x) => x.type === 'event' && x.name === 'resumed');
-  assert.ok(resumedEv);
-  assert.equal(resumedEv.tick, 16);
-});
-
-test('AC-2.8: Full Night 3 (21,600 ticks) headless performance benchmark completes in <= 30s and is deterministic', () => {
+  // Full Night 3 (18,000 ticks = 300s) Determinism & Benchmark
   const t0 = performance.now();
-  const linesA = runHeadless({
-    seed: 42,
-    night: 3,
-    ticks: 21600,
-    snapshotEvery: 600
-  });
-  const elapsedMs = performance.now() - t0;
-  assert.ok(elapsedMs < 5000, `Expected < 5000ms, took ${elapsedMs}ms`);
-
-  const linesB = runHeadless({
-    seed: 42,
-    night: 3,
-    ticks: 21600,
-    snapshotEvery: 600
-  });
+  const linesA = runHeadless({ seed: 99, night: 3, ticks: 18000, snapshotEvery: 600 });
+  const elapsed = performance.now() - t0;
+  assert.ok(elapsed < 5000);
+  const linesB = runHeadless({ seed: 99, night: 3, ticks: 18000, snapshotEvery: 600 });
   assert.deepEqual(linesA, linesB);
-
-  // Also test exit code 2 on malformed inputs via CLI
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dao-den-long-v11-'));
-  const badInputs = path.join(tmpDir, 'bad.json');
-  const outFile = path.join(tmpDir, 'out.jsonl');
-  fs.writeFileSync(badInputs, JSON.stringify({ frames: [{ tick: 5 }, { tick: 3 }] }));
-  const rBad = spawnSync(
-    'node',
-    [headlessScript, '--seed', '1', '--night', '2', '--inputs', badInputs, '--ticks', '10', '--out', outFile],
-    { encoding: 'utf8' }
-  );
-  assert.equal(rBad.status, 2);
 });

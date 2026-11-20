@@ -37,6 +37,7 @@ export function validateScenario(scenario) {
     for (const intKey of [
       'carried',
       'flames',
+      'successful_lights',
       'invuln_ticks',
       'dash_cd_ticks',
       'pulse_cd_ticks',
@@ -146,6 +147,15 @@ export function validateScenario(scenario) {
       }
       if (l.lit !== undefined && typeof l.lit !== 'boolean') {
         exitWithError(2, `scenario.lanterns[${i}].lit must be a boolean`);
+      }
+      if (l.ever_lit !== undefined && typeof l.ever_lit !== 'boolean') {
+        exitWithError(2, `scenario.lanterns[${i}].ever_lit must be a boolean`);
+      }
+      if (
+        l.fuel !== undefined &&
+        (typeof l.fuel !== 'number' || !Number.isFinite(l.fuel) || l.fuel < 0)
+      ) {
+        exitWithError(2, `scenario.lanterns[${i}].fuel must be a non-negative number`);
       }
     }
   }

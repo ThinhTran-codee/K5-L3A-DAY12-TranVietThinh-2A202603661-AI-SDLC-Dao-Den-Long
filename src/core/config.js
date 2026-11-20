@@ -1,9 +1,9 @@
 /**
- * Single Source of Truth for Test Contract v1.1 & 3-Night Map Configurations.
+ * Single Source of Truth for Test Contract v1.2 & 3-Night Map Configurations.
  * Verified against game.contract.json by automated tests.
  */
 export const CONTRACT = {
-  contract_version: '1.1',
+  contract_version: '1.2',
   team: '2A202603661-TranVietThinh',
   build_cmd: 'npm install',
   run_cmd: 'npm start',
@@ -14,15 +14,23 @@ export const CONTRACT = {
     dash_duration_s: 0.2,
     dash_cooldown_s: 1.5,
     carry_capacity: 10,
+    capacity_max: 20,
     lantern_cost: 10,
+    relight_cost: 5,
     lantern_count_night1: 5,
     pickup_radius: 1,
     interact_radius: 2,
     pulse_cost: 3,
     pulse_radius: 5,
-    night1_duration_s: 300,
-    night2_duration_s: 330,
-    night3_duration_s: 360,
+    fuel_max: 100,
+    fuel_decay_per_s: 1.0,
+    fuel_per_mote: 10,
+    drain_per_s: 5,
+    low_fuel_threshold: 30,
+    win_ratio: 0.6,
+    night1_duration_s: 240,
+    night2_duration_s: 270,
+    night3_duration_s: 300,
     flames: 3,
     invuln_s: 1.5,
     hit_drop_ratio: 0.5,
@@ -34,14 +42,19 @@ export const CONTRACT = {
     shade_hit_radius: 1,
     fall_enabled: true,
     score: {
-      per_mote: 10,
+      per_mote: 5,
       per_lantern: 100,
       per_stun: 5,
-      per_second_left: 2,
+      per_second_left: 0,
       per_flame_left: 50
     }
   }
 };
+
+export function round1(n) {
+  const r = Math.round((Number(n) + Number.EPSILON) * 10) / 10;
+  return Object.is(r, -0) ? 0 : r;
+}
 
 export function round3(n) {
   const r = Math.round((Number(n) + Number.EPSILON) * 1000) / 1000;
@@ -100,7 +113,7 @@ export const NIGHT_CONFIGS = {
     night: 1,
     name: 'Đêm 1 — Đảo Bến',
     elderIntro:
-      'Ông Đăng: "Sương đen đã nuốt trọn ánh sáng của Đảo Bến rồi Mây ơi! Mỗi Đèn Lồng Lớn cần 10 đom đóm để thức giấc. Hãy cẩn thận rìa đảo và những Bóng Mực trong sương!"',
+      'Ông Đăng: "Đèn Lồng nay sẽ cạn dần dầu theo thời gian và bị Bóng Mực hút dầu khi yếu (< 30)! Hãy giữ ít nhất 3/5 ngọn đèn sáng cho tới lúc Bình Minh (240s) nhé Mây!"',
     durationKey: 'night1_duration_s',
     shadeSpeed: 4.0,
     shadeFirstSpawnTick: 300,
@@ -121,7 +134,7 @@ export const NIGHT_CONFIGS = {
     night: 2,
     name: 'Đêm 2 — Đảo Cau',
     elderIntro:
-      'Ông Đăng: "Hai hòn Đảo Cau nối với nhau bằng chiếc cầu tre hẹp và đôi Bục Nhảy cổ đại. Hãy coi chừng Gió Lạc cướp đom đóm khi cháu mang từ 5 đốm sáng trở lên, và nhặt Bùa Gió ở giữa cầu để lướt thật nhanh!"',
+      'Ông Đăng: "Trên hai hòn Đảo Cau, cháu phải duy trì ít nhất 4/6 ngọn đèn sáng tới Bình Minh (270s). Đèn đã từng sáng nếu tắt chỉ tốn 5 đom đóm để thắp lại, và mỗi lần thắp đèn sức chứa của cháu sẽ tăng thêm 2!"',
     durationKey: 'night2_duration_s',
     shadeSpeed: 4.0,
     shadeFirstSpawnTick: 300,
@@ -150,7 +163,7 @@ export const NIGHT_CONFIGS = {
     night: 3,
     name: 'Đêm 3 — Đảo Chuông',
     elderIntro:
-      'Ông Đăng: "Đảo Chuông sừng sững ba tầng giữa biển mây, nơi từng cơn gió mạnh thổi qua mỗi 30 giây! Hãy leo hai con dốc lên tầng giữa, đạp Bục Nhảy bay lên đỉnh Tháp Chuông và thắp sáng 7 ngọn đèn đón Bình Minh!"',
+      'Ông Đăng: "Đêm cuối trên Đảo Chuông kéo dài 300 giây! Hãy châm dầu kịp thời trước khi đèn giảm dưới 30, dùng Tỏa Sáng đánh bật Bóng Mực đang hút dầu (+15 điểm) và giữ ít nhất 5/7 ngọn đèn sáng đón Bình Minh!"',
     durationKey: 'night3_duration_s',
     shadeSpeed: 4.5,
     shadeFirstSpawnTick: 300,
@@ -175,7 +188,7 @@ export const NIGHT_CONFIGS = {
   }
 };
 
-// Standardized Color Palette (Part 3 of TICKET-02)
+// Standardized Color Palette (TICKET-02 Part 3 & TICKET-03 Part 6 Colorblind Mode)
 export const PALETTE = {
   nightSky: 0x0e1430,
   fog: 0x1b2350,
@@ -190,11 +203,13 @@ export const PALETTE = {
   moteHalo: 0xffe58a,
   shadeBody: 0x120a1a,
   shadeRim: 0x7a3cff,
+  shadeRimColorblind: 0x00b3ff,
   shadeStunned: 0x3a3450,
   mayTunic: 0xe8e2d0,
   mayScarfAndCharm: 0xc8102e,
   goldBorderAndScore: 0xf2c14e,
   drifter: 0x8fa3b8,
   uiDanger: 0xff5a5f,
+  uiDangerColorblind: 0xffffff,
   uiText: 0xf5f1e6
 };
