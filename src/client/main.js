@@ -699,6 +699,7 @@ function togglePauseGame() {
   sim.step({ pause: true });
   sim.step({ pause: false });
   if (sim.state === 'paused') {
+    if (document.pointerLockElement) document.exitPointerLock();
     document.getElementById('screen-pause').classList.add('active');
   } else {
     document.getElementById('screen-pause').classList.remove('active');
@@ -805,21 +806,49 @@ window.addEventListener('keyup', (e) => {
   keys[e.code] = false;
 });
 
-let dragging = false;
-let prevMouseX = 0;
-window.addEventListener('mousedown', (e) => {
-  dragging = true;
-  prevMouseX = e.clientX;
-});
-window.addEventListener('mouseup', () => {
-  dragging = false;
-});
-window.addEventListener('mousemove', (e) => {
-  if (dragging) {
-    const dx = e.clientX - prevMouseX;
-    prevMouseX = e.clientX;
-    camYawDeg = (camYawDeg + dx * userSettings.mouseSens) % 360;
+// Direct Mouse Movement Camera Rotation (Pointer Lock on click + free mouse move when playing)
+let lastMouseX = null;
+let camPitchOffset = 0;
+
+function isAnyModalOpen() {
+  return [
+    'screen-main-menu',
+    'screen-night-intro',
+    'screen-pause',
+    'screen-settings',
+    'screen-leaderboard',
+    'screen-result'
+  ].some((id) => document.getElementById(id).classList.contains('active'));
+}
+
+canvas.addEventListener('click', () => {
+  if (sim && sim.state === 'playing' && !isAnyModalOpen() && canvas.requestPointerLock) {
+    canvas.requestPointerLock();
   }
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!sim || sim.state !== 'playing' || isAnyModalOpen()) {
+    lastMouseX = null;
+    return;
+  }
+
+  let dx = 0;
+  let dy = 0;
+  if (document.pointerLockElement === canvas) {
+    dx = e.movementX || 0;
+    dy = e.movementY || 0;
+  } else {
+    if (lastMouseX !== null) {
+      dx = e.clientX - lastMouseX;
+    } else if (typeof e.movementX === 'number') {
+      dx = e.movementX;
+    }
+    lastMouseX = e.clientX;
+  }
+
+  camYawDeg = (camYawDeg + dx * userSettings.mouseSens) % 360;
+  camPitchOffset = Math.max(-2.5, Math.min(4.0, camPitchOffset + dy * 0.015));
 });
 
 window.addEventListener('resize', () => {
@@ -1048,8 +1077,6 @@ document.getElementById('btn-result-menu').addEventListener('click', () => {
 });
 
 function buildInputFrame() {
-  if (keys['KeyQ']) camYawDeg -= 1.8;
-
   const kb = userSettings.keybinds;
   let mx = 0;
   let mz = 0;
@@ -1432,12 +1459,12 @@ function syncVisuals(timeSec, dtSec) {
   // Third-Person Camera follow
   const rad = (camYawDeg * Math.PI) / 180;
   const camDist = 11.5;
-  const camHeight = 6.8;
+  const camHeight = 6.8 + camPitchOffset;
   const targetCamX = sim.player.pos[0] + Math.sin(rad) * camDist;
   const targetCamZ = sim.player.pos[2] + Math.cos(rad) * camDist;
   camera.position.lerp(
     new THREE.Vector3(targetCamX, Math.max(-4, sim.player.pos[1]) + camHeight, targetCamZ),
-    userSettings.reducedMotion ? 1.0 : 0.16
+    userSettings.reducedMotion ? 1.0 : 0.22
   );
   camera.lookAt(sim.player.pos[0], Math.max(-4, sim.player.pos[1]) + 1.2, sim.player.pos[2]);
 
@@ -1599,6 +1626,7 @@ function handleEvents(events) {
     } else if (ev.name === 'player_hit') {
       sfx.playHit();
     } else if (ev.name === 'game_over') {
+      if (document.pointerLockElement) document.exitPointerLock();
       const resScreen = document.getElementById('screen-result');
       const titleEl = document.getElementById('result-title');
       const descEl = document.getElementById('result-desc');
