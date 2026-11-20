@@ -1,0 +1,25 @@
+{
+  "entries": [
+    {
+      "name": "May_DaoBen",
+      "score": 1420,
+      "nights_won": 3,
+      "achieved_at": "2026-11-20T14:55:00+07:00",
+      "seed": 2026
+    },
+    {
+      "name": "Ong_Dang",
+      "score": 980,
+      "nights_won": 2,
+      "achieved_at": "2026-11-20T15:30:00+07:00",
+      "seed": 42
+    },
+    {
+      "name": "Rua_Da",
+      "score": 540,
+      "nights_won": 1,
+      "achieved_at": "2026-11-20T16:05:00+07:00",
+      "seed": 101
+    }
+  ]
+}

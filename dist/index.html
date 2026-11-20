@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Đảo Đèn Lồng v1.0.0 — Ba Hòn Đảo (Phase 4 · Contract v1.3)</title>
+  <style>
+    :root {
+      --bg-night: #0E1430;
+      --bg-fog: #1B2350;
+      --ui-text: #F5F1E6;
+      --ui-gold: #F2C14E;
+      --ui-danger: #FF5A5F;
+      --ui-charm: #C8102E;
+      --ui-lantern: #FFB347;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    html, body {
+      overflow: hidden;
+      background: var(--bg-night);
+      color: var(--ui-text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      /* TICKET-04 Part 4: Minimum 18px base font size at 1280x720 */
+      font-size: 18px;
+    }
+    /* Large Text Option (x1.25 = 22.5px) */
+    body.large-text {
+      font-size: 22.5px;
+    }
+    #game-canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* HUD Layout */
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px 22px;
+      z-index: 10;
+    }
+    .hud-top {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: start;
+      gap: 14px;
+    }
+    .hud-panel {
+      background: rgba(14, 20, 48, 0.86);
+      border: 1.5px solid rgba(242, 193, 78, 0.48);
+      border-radius: 14px;
+      padding: 10px 16px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    }
+    .hud-top-left {
+      justify-self: start;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .night-label {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--ui-gold);
+    }
+    .flames-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.2rem;
+      flex-wrap: wrap;
+    }
+    #charm-badge, #wind-badge {
+      display: none;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 999px;
+    }
+    #charm-badge {
+      background: rgba(200, 16, 46, 0.88);
+      border: 1px solid var(--ui-gold);
+      color: var(--ui-text);
+    }
+    #wind-badge {
+      background: rgba(143, 163, 184, 0.28);
+      border: 1px solid #8FA3B8;
+      color: var(--ui-text);
+    }
+
+    /* Top-Center Clock mm:ss */
+    .hud-top-center {
+      justify-self: center;
+      text-align: center;
+      min-width: 135px;
+    }
+    #hud-clock {
+      font-size: 1.55rem;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: var(--ui-text);
+      font-variant-numeric: tabular-nums;
+    }
+    #hud-clock.danger {
+      color: var(--ui-danger);
+      animation: blinkDanger 0.55s infinite alternate;
+    }
+    body.colorblind #hud-clock.danger {
+      color: #FFFFFF;
+    }
+    body.reduced-motion #hud-clock.danger {
+      animation: none;
+    }
+    @keyframes blinkDanger {
+      from { opacity: 1; transform: scale(1); }
+      to { opacity: 0.35; transform: scale(1.05); }
+    }
+
+    /* Top-Right Lanterns k/n and Score */
+    .hud-top-right {
+      justify-self: end;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      font-weight: 700;
+      font-size: 1rem;
+    }
+    .score-val {
+      color: var(--ui-gold);
+      font-size: 1.15rem;
+    }
+
+    /* Center Action Prompt, Subtitles & Lore */
+    .hud-center {
+      align-self: center;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+    }
+    #action-prompt {
+      background: var(--ui-lantern);
+      color: #0E1430;
+      font-weight: 800;
+      padding: 8px 22px;
+      border-radius: 999px;
+      border: 2px solid var(--ui-gold);
+      font-size: 1rem;
+      box-shadow: 0 0 24px rgba(255, 179, 71, 0.7);
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    #visual-subtitles {
+      display: none;
+      background: rgba(14, 20, 48, 0.94);
+      border: 2px solid var(--ui-gold);
+      color: var(--ui-text);
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 7px 18px;
+      border-radius: 10px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    }
+    #lore-whisper {
+      background: rgba(14, 20, 48, 0.88);
+      border: 1px solid rgba(242, 193, 78, 0.45);
+      color: var(--ui-text);
+      padding: 8px 18px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      max-width: 600px;
+    }
+
+    /* Bottom HUD */
+    .hud-bottom {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: end;
+      gap: 14px;
+    }
+    .controls-mini {
+      justify-self: start;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: var(--ui-text);
+    }
+    .key-pill {
+      display: inline-block;
+      background: rgba(245, 241, 230, 0.14);
+      border: 1px solid rgba(242, 193, 78, 0.45);
+      padding: 1px 6px;
+      border-radius: 5px;
+      font-weight: 700;
+      color: var(--ui-gold);
+      margin: 0 2px;
+    }
+
+    /* Firefly Bar (Bottom-Center) */
+    .mote-bar-container {
+      justify-self: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .mote-bar-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--ui-gold);
+    }
+    .mote-slots {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 320px;
+    }
+    .mote-slot {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1.5px solid rgba(242, 193, 78, 0.45);
+      background: rgba(14, 20, 48, 0.75);
+    }
+    .mote-slot.filled {
+      background: radial-gradient(circle, #FFF6C2 20%, #FFB347 90%);
+      border-color: #FFF6C2;
+      box-shadow: 0 0 10px rgba(255, 229, 138, 0.8);
+    }
+
+    /* Cooldown Icons (Bottom-Right) */
+    .cooldowns-right {
+      justify-self: end;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      pointer-events: auto;
+    }
+    .cd-box {
+      width: 82px;
+      height: 82px;
+      border-radius: 14px;
+      background: rgba(14, 20, 48, 0.88);
+      border: 2px solid var(--ui-gold);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .cd-box.on-cd {
+      border-color: #5B5F6E;
+      opacity: 0.65;
+    }
+    .cd-key {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--ui-gold);
+    }
+    .cd-icon {
+      font-size: 1.3rem;
+      margin: 2px 0;
+    }
+    .cd-timer {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--ui-text);
+    }
+
+    /* Off-screen Arrows (Lantern & Shade Spawn Indicator) */
+    #offscreen-arrow, #shade-spawn-arrow {
+      position: fixed;
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: rgba(14, 20, 48, 0.92);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      font-weight: 900;
+      pointer-events: none;
+      z-index: 20;
+    }
+    #offscreen-arrow {
+      border: 2px solid var(--ui-gold);
+      color: var(--ui-lantern);
+      box-shadow: 0 0 18px rgba(255, 179, 71, 0.75);
+    }
+    #shade-spawn-arrow {
+      border: 2px solid var(--ui-danger);
+      color: var(--ui-danger);
+      box-shadow: 0 0 18px rgba(255, 90, 95, 0.85);
+    }
+    body.colorblind #shade-spawn-arrow {
+      border-color: #00B3FF;
+      color: #00B3FF;
+    }
+
+    /* Overlay Screens */
+    .overlay-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(14, 20, 48, 0.88);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    .overlay-screen.active {
+      display: flex;
+    }
+    .dialog-card {
+      background: linear-gradient(155deg, #1B2350, #0E1430);
+      border: 2px solid var(--ui-gold);
+      border-radius: 22px;
+      padding: 26px 32px;
+      text-align: center;
+      max-width: 620px;
+      width: 95%;
+      box-shadow: 0 16px 60px rgba(0, 0, 0, 0.7);
+      max-height: 92vh;
+      overflow-y: auto;
+    }
+    .dialog-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--ui-gold);
+      margin-bottom: 8px;
+    }
+    .dialog-subtitle {
+      font-size: 1rem;
+      color: var(--ui-text);
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+    .btn-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .menu-btn {
+      cursor: pointer;
+      background: rgba(242, 193, 78, 0.16);
+      border: 1.5px solid var(--ui-gold);
+      color: var(--ui-text);
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 10px 22px;
+      border-radius: 12px;
+      min-width: 210px;
+      transition: all 0.15s;
+    }
+    .menu-btn:hover {
+      background: rgba(242, 193, 78, 0.35);
+    }
+    .menu-btn.primary {
+      background: linear-gradient(135deg, #FFB347, #F2C14E);
+      color: #0E1430;
+      border: none;
+      font-weight: 800;
+    }
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 10px 0;
+      font-weight: 600;
+      gap: 14px;
+      font-size: 0.95rem;
+    }
+    .setting-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--ui-gold);
+    }
+
+    /* Keybind Grid */
+    .keybind-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 14px;
+      margin: 12px 0;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+    .keybind-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(14, 20, 48, 0.6);
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(242, 193, 78, 0.3);
+    }
+    .keybind-btn {
+      cursor: pointer;
+      background: rgba(242, 193, 78, 0.2);
+      border: 1px solid var(--ui-gold);
+      color: var(--ui-gold);
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    .keybind-btn.listening {
+      background: var(--ui-danger);
+      color: #fff;
+      border-color: #fff;
+    }
+    #keybind-warning {
+      color: var(--ui-danger);
+      font-size: 0.88rem;
+      font-weight: 700;
+      min-height: 22px;
+      margin-top: 4px;
+    }
+    body.colorblind #keybind-warning {
+      color: #FFFFFF;
+    }
+
+    /* Leaderboard Table & Form */
+    .lb-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 0.9rem;
+    }
+    .lb-table th, .lb-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(242, 193, 78, 0.25);
+      text-align: center;
+    }
+    .lb-table th {
+      color: var(--ui-gold);
+      font-weight: 800;
+    }
+    .lb-form {
+      background: rgba(14, 20, 48, 0.65);
+      border: 1px solid rgba(242, 193, 78, 0.4);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+    }
+    .lb-input {
+      background: #0E1430;
+      border: 1.5px solid var(--ui-gold);
+      color: var(--ui-text);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 1rem;
+      width: 180px;
+      margin-right: 8px;
+    }
+  </style>
+  <script type="module" crossorigin src="/assets/index-DMYq9NGf.js"></script>
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Off-screen Arrows -->
+  <div id="offscreen-arrow" title="Hướng tới Đèn Lồng chưa sáng gần nhất">➤</div>
+  <div id="shade-spawn-arrow" title="Hướng Bóng Mực vừa xuất hiện">⚠</div>
+
+  <!-- In-Game HUD -->
+  <div id="hud">
+    <div class="hud-top">
+      <div class="hud-panel hud-top-left">
+        <div class="night-label" id="hud-night-name">Đêm 1 — Đảo Bến</div>
+        <div class="flames-row">
+          <span id="hud-flames">🔥🔥🔥</span>
+          <span id="charm-badge">🧧 Bùa Gió: 10s</span>
+          <span id="wind-badge">🍃 Gió Mạnh!</span>
+        </div>
+      </div>
+
+      <div class="hud-panel hud-top-center">
+        <div id="hud-clock">04:00</div>
+      </div>
+
+      <div class="hud-panel hud-top-right">
+        <div>🏮 Đèn: <span id="hud-lanterns" class="score-val">0/5</span></div>
+        <div>⭐ Điểm: <span id="hud-score" class="score-val">0</span></div>
+      </div>
+    </div>
+
+    <div class="hud-center">
+      <div id="action-prompt">E — Nạp ánh sáng (0/10)</div>
+      <div id="visual-subtitles"></div>
+      <div id="lore-whisper">🐢 Cụ Rùa Giữ Bến: "Hãy giữ ít nhất 60% số Đèn Lồng sáng tới Bình Minh! Bấm [Esc/P] để mở Menu, Bảng Xếp Hạng & Cài đặt Dễ tiếp cận."</div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="hud-panel controls-mini">
+        <div>
+          <span class="key-pill" id="pill-move">WASD</span> Di chuyển ·
+          <span class="key-pill" id="pill-jump">Space</span> Nhảy ·
+          <span class="key-pill" id="pill-dash">Shift</span> Lướt ·
+          <span class="key-pill" id="pill-interact">E</span> Đèn
+        </div>
+        <div>
+          <span class="key-pill" id="pill-pulse">F</span> Tỏa sáng (-3) ·
+          <span class="key-pill">G</span> Chuông gió ·
+          <span class="key-pill" id="pill-pause">Esc/P</span> Menu
+        </div>
+      </div>
+
+      <div class="hud-panel mote-bar-container">
+        <div class="mote-bar-title">ĐOM ĐÓM (<span id="hud-mote-count">0/10</span>)</div>
+        <div class="mote-slots" id="hud-mote-slots"></div>
+      </div>
+
+      <div class="cooldowns-right">
+        <div class="cd-box" id="cd-dash-box" title="Lướt nhanh 14m/s">
+          <div class="cd-key" id="cd-dash-key">SHIFT</div>
+          <div class="cd-icon">💨</div>
+          <div class="cd-timer" id="cd-dash-text">Sẵn sàng</div>
+        </div>
+        <div class="cd-box" id="cd-pulse-box" title="Tỏa sáng làm choáng Bóng Mực">
+          <div class="cd-key" id="cd-pulse-key">PHÍM F</div>
+          <div class="cd-icon">✨</div>
+          <div class="cd-timer" id="cd-pulse-text">Cần 3</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. Main Menu Overlay -->
+  <div class="overlay-screen" id="screen-main-menu">
+    <div class="dialog-card">
+      <div class="dialog-title">🏮 ĐẢO ĐÈN LỒNG v1.0.0</div>
+      <div class="dialog-subtitle">Giữ ánh sáng trên Ba Hòn Đảo qua màn sương đen cho tới khoảnh khắc Bình Minh.</div>
+      <div class="btn-stack">
+        <button class="menu-btn primary" id="btn-start-campaign">Bắt đầu Hành trình (Đêm 1 → 3)</button>
+        <div class="btn-row">
+          <button class="menu-btn" style="min-width:130px" data-select-night="1">Đêm 1: Đảo Bến</button>
+          <button class="menu-btn" style="min-width:130px" data-select-night="2">Đêm 2: Đảo Cau</button>
+          <button class="menu-btn" style="min-width:130px" data-select-night="3">Đêm 3: Đảo Chuông</button>
+        </div>
+        <button class="menu-btn" id="btn-open-leaderboard">🏆 Bảng Xếp Hạng Top 10</button>
+        <button class="menu-btn" id="btn-open-settings-main">⚙️ Cài đặt & Dễ tiếp cận (Đổi phím, Mù màu)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Night Intro Overlay -->
+  <div class="overlay-screen" id="screen-night-intro">
+    <div class="dialog-card">
+      <div class="dialog-title" id="intro-night-title">Đêm 1 — Đảo Bến</div>
+      <div class="dialog-subtitle" id="intro-elder-quote"></div>
+      <button class="menu-btn primary" id="btn-begin-night">Vào Đêm Ngay</button>
+    </div>
+  </div>
+
+  <!-- 3. Pause Menu Overlay -->
+  <div class="overlay-screen" id="screen-pause">
+    <div class="dialog-card">
+      <div class="dialog-title">⏸️ TẠM DỪNG</div>
+      <div class="dialog-subtitle">Trò chơi đang dừng hoàn toàn.</div>
+      <div class="btn-stack">
+        <button class="menu-btn primary" id="btn-pause-resume">Tiếp tục</button>
+        <button class="menu-btn" id="btn-pause-restart">Chơi lại Đêm này</button>
+        <button class="menu-btn" id="btn-pause-leaderboard">🏆 Bảng Xếp Hạng</button>
+        <button class="menu-btn" id="btn-pause-settings">⚙️ Cài đặt & Đổi phím</button>
+        <button class="menu-btn" id="btn-pause-menu">Về Menu Chính</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Settings & Accessibility Overlay -->
+  <div class="overlay-screen" id="screen-settings">
+    <div class="dialog-card">
+      <div class="dialog-title">⚙️ CÀI ĐẶT & DỄ TIẾP CẬN</div>
+      <div class="setting-row">
+        <span>Âm lượng: <strong id="lbl-volume">70%</strong></span>
+        <input type="range" id="input-volume" min="0" max="100" value="70" />
+      </div>
+      <div class="setting-row">
+        <span>Độ nhạy chuột: <strong id="lbl-sens">0.35</strong></span>
+        <input type="range" id="input-sens" min="10" max="100" value="35" />
+      </div>
+      <div class="setting-row">
+        <span>Bảng màu dễ phân biệt (Mù màu):</span>
+        <input type="checkbox" id="input-colorblind" style="width:20px;height:20px;accent-color:var(--ui-gold);cursor:pointer" />
+      </div>
+      <div class="setting-row">
+        <span>Giảm chuyển động (Tắt rung & chớp):</span>
+        <input type="checkbox" id="input-reduced-motion" style="width:20px;height:20px;accent-color:var(--ui-gold);cursor:pointer" />
+      </div>
+      <div class="setting-row">
+        <span>Cỡ chữ lớn (×1.25 — 22.5px):</span>
+        <input type="checkbox" id="input-large-text" style="width:20px;height:20px;accent-color:var(--ui-gold);cursor:pointer" />
+      </div>
+
+      <div style="margin-top:12px;font-weight:800;color:var(--ui-gold);font-size:0.95rem">ĐỔI PHÍM ĐIỀU KHIỂN (Bấm vào ô để gán phím mới)</div>
+      <div class="keybind-grid" id="keybind-grid"></div>
+      <div id="keybind-warning"></div>
+
+      <div class="btn-row" style="margin-top:12px">
+        <button class="menu-btn" id="btn-reset-keys" style="min-width:170px">Khôi phục mặc định</button>
+        <button class="menu-btn primary" id="btn-close-settings" style="min-width:170px">Lưu & Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Leaderboard Overlay -->
+  <div class="overlay-screen" id="screen-leaderboard">
+    <div class="dialog-card">
+      <div class="dialog-title">🏆 BẢNG XẾP HẠNG TOP 10</div>
+      <div class="dialog-subtitle">Lưu trên đĩa cục bộ (data/leaderboard.json & localStorage).</div>
+      <table class="lb-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Tên</th>
+            <th>Điểm</th>
+            <th>Đêm thắng</th>
+            <th>Seed</th>
+            <th>Thời gian</th>
+          </tr>
+        </thead>
+        <tbody id="lb-tbody"></tbody>
+      </table>
+      <button class="menu-btn primary" id="btn-close-leaderboard">Đóng</button>
+    </div>
+  </div>
+
+  <!-- 6. Night Result / Dawn Finale Overlay with Leaderboard Save -->
+  <div class="overlay-screen" id="screen-result">
+    <div class="dialog-card">
+      <div class="dialog-title" id="result-title">ĐẢO BỪNG SÁNG!</div>
+      <div class="dialog-subtitle" id="result-desc"></div>
+      <div style="font-size:1.3rem;font-weight:800;color:var(--ui-gold);margin-bottom:14px" id="result-score"></div>
+
+      <!-- Save Score Box (Shown on Dawn Win after Night 3 OR on Loss on any Night) -->
+      <div class="lb-form" id="lb-save-box">
+        <div style="font-size:0.9rem;font-weight:700;margin-bottom:8px;color:var(--ui-gold)">
+          Lưu thành tích vào Bảng Xếp Hạng (3–12 ký tự chữ, số hoặc _):
+        </div>
+        <div>
+          <input type="text" id="lb-name-input" class="lb-input" maxlength="12" placeholder="VD: May_Pro" value="May_K5" />
+          <button class="menu-btn primary" id="btn-save-score" style="min-width:120px;padding:8px 16px">Lưu điểm</button>
+        </div>
+        <div id="lb-save-msg" style="font-size:0.85rem;margin-top:6px;min-height:20px"></div>
+      </div>
+
+      <div class="btn-stack">
+        <button class="menu-btn primary" id="btn-result-next">Đêm Kế Tiếp</button>
+        <button class="menu-btn" id="btn-result-retry">Chơi lại Đêm này</button>
+        <button class="menu-btn" id="btn-result-menu">Về Menu Chính</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
