@@ -112,6 +112,9 @@
       color: var(--ui-danger);
       animation: blinkDanger 0.55s infinite alternate;
     }
+    body.colorblind #hud-clock.danger {
+      color: #FFFFFF;
+    }
     @keyframes blinkDanger {
       from { opacity: 1; transform: scale(1); }
       to { opacity: 0.35; transform: scale(1.06); }
@@ -486,6 +489,10 @@
       <div class="setting-row">
         <span>Độ nhạy chuột: <strong id="lbl-sens">0.35</strong></span>
         <input type="range" id="input-sens" min="10" max="100" value="35" />
+      </div>
+      <div class="setting-row">
+        <span>Bảng màu dễ phân biệt (Mù màu):</span>
+        <input type="checkbox" id="input-colorblind" style="width:20px;height:20px;accent-color:var(--ui-gold);cursor:pointer" />
       </div>
       <div style="margin-top:20px">
         <button class="menu-btn primary" id="btn-close-settings">Lưu & Đóng</button>
