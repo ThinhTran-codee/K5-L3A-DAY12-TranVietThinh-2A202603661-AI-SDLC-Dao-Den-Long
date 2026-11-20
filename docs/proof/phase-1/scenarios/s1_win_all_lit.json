@@ -1,0 +1,84 @@
+{
+  "player": {
+    "pos": [
+      0,
+      0,
+      0
+    ],
+    "carried": 0,
+    "flames": 3
+  },
+  "random_motes": false,
+  "random_shades": false,
+  "motes": [
+    [
+      0,
+      0,
+      2
+    ],
+    [
+      0,
+      0,
+      4
+    ],
+    [
+      0,
+      0,
+      6
+    ]
+  ],
+  "shades": [],
+  "lanterns": [
+    {
+      "id": "L1",
+      "pos": [
+        0,
+        0,
+        8
+      ],
+      "deposited": 0,
+      "lit": false
+    },
+    {
+      "id": "L2",
+      "pos": [
+        23.776,
+        0,
+        7.725
+      ],
+      "deposited": 3,
+      "lit": true
+    },
+    {
+      "id": "L3",
+      "pos": [
+        14.695,
+        0,
+        -20.225
+      ],
+      "deposited": 3,
+      "lit": true
+    },
+    {
+      "id": "L4",
+      "pos": [
+        -14.695,
+        0,
+        -20.225
+      ],
+      "deposited": 3,
+      "lit": true
+    },
+    {
+      "id": "L5",
+      "pos": [
+        -23.776,
+        0,
+        7.725
+      ],
+      "deposited": 3,
+      "lit": true
+    }
+  ],
+  "time_left_s": 300
+}

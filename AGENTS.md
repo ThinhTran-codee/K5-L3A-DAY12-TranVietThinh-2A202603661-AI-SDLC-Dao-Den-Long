@@ -21,7 +21,7 @@
    - Output coordinates in JSONL must be rounded to 3 decimal places.
 4. **Exit Codes in Headless Mode:**
    - `0`: Completed `--ticks` or reached `game_over`.
-   - `2`: Invalid/malformed `--scenario` or `--inputs` JSON (e.g., non-increasing frame ticks).
+   - `2`: Invalid/malformed `--scenario` or `--inputs` JSON (e.g., non-increasing frame ticks, non-numeric move vector). *Guardrail updated in Phase 1:* Do NOT reject `move: [x, z]` when `|x| > 1` or `|z| > 1`; normalize any finite vector with `Math.hypot(x, z) > 1` to unit length per Test Contract v1.0 Section C.
    - `1`: Other CLI/runtime errors.
 5. **Creative Features Isolation:** Any creative extensions ("Sáng tạo của tôi") must not alter headless output under Test Contract v1.0.
 6. **Security:** Never commit `.env`, API keys, or secrets.
